@@ -6,6 +6,7 @@ from discord.ext import commands
 from dotenv import load_dotenv
 from chegg_scraper import get_chegg_images
 
+
 load_dotenv() # You need a .env file in your folder to get any secrets
 TOKEN = os.getenv('DISCORD_TOKEN')
 CHEGG_USER = os.getenv('CHEGG_USER')
@@ -16,13 +17,15 @@ bot = commands.Bot(command_prefix='?')
 
 @bot.event
 async def on_ready():
-    print(f"Logged on as {bot.user} in server: {bot.guilds[0]}")
+    print(f"Logged on as {bot.user} in servers: {[x.name for x in bot.guilds]}")
 
 
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.errors.CheckFailure):
         await ctx.send('You do not have the correct role for this command.')
+    else:
+        await ctx.send(error)
 
     
 @bot.command(name='chegg', help="Fetches chegg answers for any given URL")
@@ -42,18 +45,31 @@ async def chegg(ctx, url: str=None):
         await ctx.send("Invalid URL.")
 
 
-@chegg.error
-async def chegg_error(ctx, error):
-    await ctx.send(error)
-
-
 @bot.command(name='py', help="Uses python's built in 'eval()' function and returns the result.")
 @commands.has_role("Business Men")
 async def py(ctx, *, code):
     #A bad example of an eval command
     await ctx.send(eval(code))
 
+
+'''
+💰 Ticker: BBGI
+🟢 Entry: 2.87
+🎯 Price Target 1: 3.2+
+🛑 Stop Loss: 2.57
+💭 Comments: Communications sector is leading - amazing daily chart loading here
+
+'''
+
+
+@bot.event
+async def on_message(message):
+    if message.content[0:9] == '💰 Ticker:':
+        response = f"Buying 100 shares of {message.content[10:14]} @ {message.content[24:28]}"
+        print(response)
+        await message.channel.send(response)
+
+    await bot.process_commands(message)
    
 
 bot.run(TOKEN)
-
