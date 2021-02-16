@@ -25,10 +25,10 @@ If you have any questions with the instructions please do not hesitate to contac
 ***TODO:*** For now just commit to main should be fine
 
 ## Helpful Links
-https://www.selenium.dev/selenium/docs/api/py/api.html
-https://tecadmin.net/setup-selenium-chromedriver-on-ubuntu/
-https://discordpy.readthedocs.io/en/latest/
-https://developer.tdameritrade.com/apis
+- https://www.selenium.dev/selenium/docs/api/py/api.html
+- https://tecadmin.net/setup-selenium-chromedriver-on-ubuntu/
+- https://discordpy.readthedocs.io/en/latest/
+- https://developer.tdameritrade.com/apis
 
 ## Research
 https://pypi.org/project/td-ameritrade-python-api/
