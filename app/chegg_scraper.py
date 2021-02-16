@@ -19,5 +19,3 @@ def get_chegg_images(URL, user=None, password=None):
 
 url = "https://www.chegg.com/homework-help/questions-and-answers/consider-circuit--use-node-voltage-method-obtain-node-voltages-v1-v2-v3-use-linsolve-funct-q55827065"
 url = "https://www.google.com"
-
-images = get_chegg_images(url)
