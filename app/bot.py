@@ -4,8 +4,9 @@ import random
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
-from chegg_scraper import get_chegg_images
 
+from chegg_scraper import get_chegg_images
+from pump_trader import get_stock_data
 
 load_dotenv() # You need a .env file in your folder to get any secrets
 TOKEN = os.getenv('DISCORD_TOKEN')
@@ -52,6 +53,13 @@ async def py(ctx, *, code):
     await ctx.send(eval(code))
 
 
+@bot.command(name='stock', help="Gets stock info")
+@commands.has_role("Business Men")
+async def py(ctx, ticker):
+    bid, ask = get_stock_data(ticker)
+    await ctx.send( f"BID: ${bid}\nASK: ${ask}")
+
+
 '''
 💰 Ticker: BBGI
 🟢 Entry: 2.87
@@ -65,6 +73,8 @@ async def py(ctx, *, code):
 @bot.event
 async def on_message(message):
     if message.content[0:9] == '💰 Ticker:':
+        ticker = message.content[10:14]
+        #get_stock_data(ticker)
         response = f"Buying 100 shares of {message.content[10:14]} @ {message.content[24:28]}"
         print(response)
         await message.channel.send(response)

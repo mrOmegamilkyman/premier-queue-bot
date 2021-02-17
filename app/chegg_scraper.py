@@ -10,7 +10,7 @@ def get_chegg_images(URL, user=None, password=None):
     chrome_options = Options()
     chrome_options.headless = True
     chrome_options.add_argument('window-size=1920,1080')
-    chrome_options.add_argument('--user-data-dir=/home/joseph/chegg-bot/user')
+    chrome_options.add_argument('--user-data-dir=/home/joseph/g3-bot/app/user')
     driver = webdriver.Chrome('./chromedriver', chrome_options=chrome_options)
     driver.get(url)
     input("finish")
