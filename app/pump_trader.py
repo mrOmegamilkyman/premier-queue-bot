@@ -10,8 +10,8 @@ TD_CONSUMER_KEY = os.getenv('TD_CONSUMER_KEY')
 TD_REFRESH_TOKEN = os.getenv('TD_REFRESH_TOKEN')
 URL_ENCODED_REDIRECT_URI = "https%3A%2F%2Flocalhost%3A8080%2Fcallback"
 
-CAPITAL_ALLOCATION_RATE = 0.25
-ROLLING_STOP_LOSS = 0.10
+CAPITAL_ALLOCATION_RATE = 0.20
+ROLLING_STOP_LOSS = 0.05
 
 
 #This only really needs to be called like every 30 minutes but it doesnt blow up if i get a new one for every time sooooo.......
@@ -94,18 +94,36 @@ def send_order(ticker, amount, access_token):
 def set_position(ticker):
     token = get_access_token()
     ask_price = get_stock_data(ticker, token)["askPrice"]
-    accounts = get_accounts(token)
-    available_cash = accounts[0]["securitiesAccount"]["currentBalances"]["cashAvailableForTrading"]
+    #accounts = get_accounts(token)
+    #available_cash = accounts[0]["securitiesAccount"]["currentBalances"]["cashAvailableForTrading"]
+    log = {}
+    with open('performance.json', newline='\n') as f:
+        log = json.load(f)
+
+    available_cash = log[-1]["AVAILABLE CASH"]-log[-1]["COST"]
+
     trade_allocation = available_cash * CAPITAL_ALLOCATION_RATE
-    
     total_shares = math.floor(trade_allocation/ask_price)
+    print("------------------")
+    details = {
+            "TICKER": ticker,
+            "ASK PRICE": ask_price,
+            "AVAILABLE CASH": available_cash,
+            "ALLOCATION RATE": CAPITAL_ALLOCATION_RATE,
+            "TRADE ALLOCATION": trade_allocation,
+            "BUYING": total_shares,
+            "COST": total_shares*ask_price
+            }
+    for key, value in details.items():
+        print(f"{key}: {value}")
+    log.append(details)
 
-    print(f"TICKER: {ticker}")
-    print(f"ASK PRICE: ${ask_price}")
-    print(f"ALLOCATION RATE: {CAPITAL_ALLOCATION_RATE*100}%")
-    print(f"TRADE ALLOCATION: ${trade_allocation}")
-    print(f"BUYING: {total_shares} Shares")
-    print(f"TOTAL COST: ${total_shares*ask_price}")
+    with open('performance.json', 'w', newline='\n') as f:
+        json.dump(log, f)
 
-set_position("NTIP")
-send_order("NTIP", 1, get_access_token())
+
+
+#set_position("NTIP")
+#send_order("NTIP", 1, get_access_token())
+a = get_accounts(get_access_token())
+print(a)
