@@ -5,8 +5,8 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 
+import pump_trader as pt
 from chegg_scraper import get_chegg_images
-from pump_trader import get_stock_data
 
 load_dotenv() # You need a .env file in your folder to get any secrets
 TOKEN = os.getenv('DISCORD_TOKEN')
@@ -56,28 +56,40 @@ async def py(ctx, *, code):
 @bot.command(name='stock', help="Gets stock info")
 @commands.has_role("Business Men")
 async def py(ctx, ticker):
-    bid, ask = get_stock_data(ticker)
-    await ctx.send( f"BID: ${bid}\nASK: ${ask}")
+    ticker = ticker.upper()
+    content="Pretend Stock Alert:"
+    embed=discord.Embed(description=f'''💰 Ticker : **{ticker}**
+                                        🟢 Entry : 2.87
+                                        🎯 Price Target 1: 3.2+
+                                        🛑 Stop Loss : 2.57
+                                        💭 Comments : Communications sector is leading - amazing daily chart loading here
+                                        ''', color=0x001adb)
+    await ctx.send(content=content, embed=embed)
 
 
 '''
-💰 Ticker: BBGI
-🟢 Entry: 2.87
+💰 Ticker : BBGI
+🟢 Entry : 2.87
 🎯 Price Target 1: 3.2+
-🛑 Stop Loss: 2.57
-💭 Comments: Communications sector is leading - amazing daily chart loading here
+🛑 Stop Loss : 2.57
+💭 Comments : Communications sector is leading - amazing daily chart loading here
 
 '''
 
 
 @bot.event
 async def on_message(message):
-    if message.content[0:9] == '💰 Ticker:':
-        ticker = message.content[10:14]
-        #get_stock_data(ticker)
-        response = f"Buying 100 shares of {message.content[10:14]} @ {message.content[24:28]}"
-        print(response)
-        await message.channel.send(response)
+    if len(message.embeds) > 0:
+        description = message.embeds[0].description
+        if len(description) > 11:
+            if description[0:11] == '💰 Ticker : ':
+                ticker = description[11:18]
+                ticker = ticker.strip(" *\n🟢")
+                data = pt.get_stock_data(ticker)
+                response = f"Buying 100 shares of {ticker} @ {data['askPrice']}"
+                print(response)
+                #Buy the shares!
+                await message.channel.send(response)
 
     await bot.process_commands(message)
    
