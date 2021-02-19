@@ -2,6 +2,7 @@ import os
 import json
 import requests
 import math
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -37,6 +38,7 @@ def get_access_token():
 def get_stock_data(ticker, access_token=None):
     if access_token == None:
         endpoint = f'https://api.tdameritrade.com/v1/marketdata/{ticker}/quotes?apikey={TD_CONSUMER_KEY}'
+
         response = requests.get(url=endpoint)
         content = json.loads(response.content)
         stock_data = content[ticker]
@@ -45,6 +47,7 @@ def get_stock_data(ticker, access_token=None):
         headers = {
             'Authorization':f'Bearer {access_token}'
             }
+
         response = requests.get(url=endpoint, headers=headers)
         content = json.loads(response.content)
         stock_data = content[ticker]
@@ -54,6 +57,7 @@ def get_stock_data(ticker, access_token=None):
 def get_accounts(access_token):
     endpoint = "https://api.tdameritrade.com/v1/accounts"
     headers = {"authorization": f"Bearer {access_token}"}
+    
     response = requests.get(url=endpoint, headers=headers)
     content = json.loads(response.content)
     return content
@@ -85,6 +89,7 @@ def send_order(ticker, amount, access_token):
         ]
     }
     data = json.dumps(data)
+
     response = requests.post(url=endpoint, headers=headers, data=data)
     content = json.loads(response.content)
     print(content)
@@ -104,6 +109,7 @@ def set_position(ticker):
 
     trade_allocation = available_cash * CAPITAL_ALLOCATION_RATE
     total_shares = math.floor(trade_allocation/ask_price)
+
     print("------------------")
     details = {
             "TICKER": ticker,
@@ -114,16 +120,11 @@ def set_position(ticker):
             "BUYING": total_shares,
             "COST": total_shares*ask_price
             }
+
     for key, value in details.items():
         print(f"{key}: {value}")
+        
     log.append(details)
 
     with open('performance.json', 'w', newline='\n') as f:
         json.dump(log, f)
-
-
-
-#set_position("NTIP")
-#send_order("NTIP", 1, get_access_token())
-a = get_accounts(get_access_token())
-print(a)
