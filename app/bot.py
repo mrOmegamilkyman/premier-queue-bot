@@ -6,6 +6,7 @@ from discord.ext import commands
 from dotenv import load_dotenv
 
 import pump_trader as pt
+import local
 from chegg_scraper import get_chegg_images
 
 load_dotenv() # You need a .env file in your folder to get any secrets
@@ -50,7 +51,8 @@ async def chegg(ctx, url: str=None):
 @commands.has_role("Business Men")
 async def py(ctx, *, code):
     #A bad example of an eval command
-    await ctx.send(eval(code))
+    response = local.evaluate_safe(code)
+    await ctx.send(response)
 
 
 @bot.command(name='stock', help="Gets stock info")
@@ -72,8 +74,7 @@ async def py(ctx, ticker):
 🟢 Entry : 2.87
 🎯 Price Target 1: 3.2+
 🛑 Stop Loss : 2.57
-💭 Comments : Communications sector is leading - amazing daily chart loading here
-
+💭 Comments : Communications sector is leading - amazing daily chart loading here1
 '''
 
 
