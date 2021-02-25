@@ -1,5 +1,6 @@
 # bot.py
 import os
+import sys
 import random
 import discord
 from discord.ext import commands
@@ -27,7 +28,7 @@ async def on_command_error(ctx, error):
     if isinstance(error, commands.errors.CheckFailure):
         await ctx.send('You do not have the correct role for this command.')
     else:
-        await ctx.send(error)
+        await ctx.send(f"{error}")
 
     
 @bot.command(name='chegg', help="Fetches chegg answers for any given URL")
@@ -49,10 +50,30 @@ async def chegg(ctx, url: str=None):
 
 @bot.command(name='py', help="Uses python's built in 'eval()' function and returns the result.")
 @commands.has_role("Business Men")
-async def py(ctx, *, code):
+async def py(ctx, *, code:str):
     #A bad example of an eval command
-    response = local.evaluate_safe(code)
-    await ctx.send(response)
+
+    with open("user_code.txt", "r+") as f_code:
+        f_code.truncate(0)
+        f_code.write(code)
+        f_code.seek(0)
+
+        with open("output.txt", 'r+') as f_out:
+            f_out.truncate(0)
+            sys.stdout = f_out
+            local.execute_safe(f_code.read())
+
+            f_out.seek(0)
+            sys.stdout = sys.__stdout__
+
+            content = f_out.read()[0:-1] # Drop the last EOL character
+            await ctx.send(content[0:2000])
+            return
+            for i in range(0, len(content), 2000):
+                message = content[i:i+2000]
+                if message != None:
+                    print(f"Sending Characters: {i}")
+                    await ctx.send(message)
 
 
 @bot.command(name='stock', help="Gets stock info")
