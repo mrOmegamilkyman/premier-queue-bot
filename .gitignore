@@ -136,3 +136,5 @@ cython_debug/
 
 chromedriver
 app/user
+app/output.txt
+app/user_code.txt
