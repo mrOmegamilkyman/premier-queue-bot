@@ -48,8 +48,8 @@ async def chegg(ctx, url: str=None):
         await ctx.send("Invalid URL.")
 
 
-@bot.command(name='py', help="Uses python's built in 'eval()' function and returns the result.")
-@commands.has_role("Business Men")
+@bot.command(name='py', help="Uses python's built in 'exec()' function and returns the stdout.")
+@commands.has_role("Archons")
 async def py(ctx, *, code:str):
     #A bad example of an eval command
 
