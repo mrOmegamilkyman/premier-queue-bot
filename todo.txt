@@ -1,0 +1,13 @@
+Done
+-Create a "Hello, World!" bot on a dedicated server and add it to Discord.
+
+To-Do
+-Set up everything related to onboarding of new players, including asking for roles and regions.
+-Add a function to start up the lobby.
+-Connect players to a League game.
+-Add a feature to track player data and progress over time.
+-Implement a system for handling disputes and resolving conflicts.
+-Create a system for scheduling and organizing tournaments and events.
+-Add a feature for players to find and join teams.
+-Implement a system for rewarding and recognizing top players.
+-Add integration with other popular gaming platforms, such as Steam and Twitch.

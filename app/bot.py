@@ -1,26 +1,34 @@
-# bot.py
 import os
-import sys
-import random
 import discord
+
 from discord.ext import commands
 from dotenv import load_dotenv
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from database import Player, Match
 
-import pump_trader as pt
-import local
-from chegg_scraper import get_chegg_images
 
+# Discord Bot Startup
 load_dotenv() # You need a .env file in your folder to get any secrets
 TOKEN = os.getenv('DISCORD_TOKEN')
-CHEGG_USER = os.getenv('CHEGG_USER')
-CHEGG_PASSWORD = os.getenv('CHEGG_PASSWORD')
+intents = discord.Intents().all()
+bot = commands.Bot(command_prefix='?', intents=intents)
 
-bot = commands.Bot(command_prefix='?')
+# SQL Alchemy Startup
+engine = create_engine('sqlite:///app/main.db')
+SessionMaker = sessionmaker(bind=engine)
+session = SessionMaker()
 
 
 @bot.event
 async def on_ready():
-    print(f"Logged on as {bot.user} in servers: {[x.name for x in bot.guilds]}")
+    print(f'We have logged in as {bot.user}')
+
+    for guild in bot.guilds:
+        print(f'Connected to the following guild:\n {guild.name}(id: {guild.id})')
+    
+    members = '\n - '.join([member.name for member in guild.members])
+    print(f'Guild Members:\n - {members}')
 
 
 @bot.event
@@ -30,90 +38,108 @@ async def on_command_error(ctx, error):
     else:
         await ctx.send(f"{error}")
 
-    
-@bot.command(name='chegg', help="Fetches chegg answers for any given URL")
-@commands.has_role("Business Men")
-async def chegg(ctx, url: str=None):
-    example_url = "https://www.chegg.com/homework-help/questions-and-answers/consider-circuit-\
-    -use-node-voltage-method-obtain-node-voltages-v1-v2-v3-use-linsolve-funct-q55827065"
 
-    if url == None:
-        await ctx.send("Missing URL")
-    elif url[0:58] == "https://www.chegg.com/homework-help/questions-and-answers/":
-        # Need to implement get_chegg_images() function, In the meantime send test.png
-        # images = get_chegg_images(url, user=CHEGG_USER, password=CHEGG_PASSWORD) 
-        images = 'images/test.png'
-        await ctx.send(file=discord.File(images))
+@bot.command(name='hello', help='Says hello')
+async def say_hello(ctx):
+    print('hello command initiated')
+    await ctx.send("Hello!")
+
+
+@bot.command(name='create_profile', help='Initiates a players profile with their IGN and their region')
+async def create_profile(ctx, ign: str, region: str):
+    # Check if the IGN is already in the database
+    existing_player = session.query(Player).filter_by(ign=ign).first()
+    existing_ign = session.query(Player).filter_by(discord_id=ctx.author.id).first()
+
+    if region.upper() not in ['NA', 'EUW', 'EUN']:
+        embed = discord.Embed(title='Error', description='Invalid region. Please choose from: NA, EUW, EUN', color=0xff0000)
+        await ctx.send(embed=embed)
+
+    elif existing_player:
+        # IGN is already in the database
+        embed = discord.Embed(title='Error', description=f'The IGN {ign} is already taken. Please choose a different IG or contact an administrator.', color=0xff0000)
+        await ctx.send(embed=embed)
+
+    elif existing_ign:
+        # User already has a player profile in the database
+        embed = discord.Embed(title='Error', description='You already have a player profile. If you need to update your IGN, please contact an administrator.', color=0xff0000)
+        await ctx.send(embed=embed)
+
     else:
-        await ctx.send("Invalid URL.")
+        player = Player(discord_id=ctx.author.id, ign=ign, region=region)# We need to auth this somehow
+        session.add(player)
+        session.commit()
+        print(f'Created a new player profile for {player}!')
+        embed = discord.Embed(title='Success', description=f'Created a new player profile for {ign}!', color=0x00ff00)
+        await ctx.send(embed=embed)
 
 
-@bot.command(name='py', help="Uses python's built in 'exec()' function and returns the stdout.")
-@commands.has_role("Archons")
-async def py(ctx, *, code:str):
-    #A bad example of an eval command
+@bot.command(name='update_profile', help='Initiates a players profile with their IGN and their region')
+@commands.has_role("Admin")
+async def update_profile(ctx, disc_id: str):
+    # Check if the IGN is already in the database
+    disc_id = int(disc_id[2:-1])
+    msg = f"input:({disc_id}) Discord:({ctx.author.id})"
 
-    with open("user_code.txt", "r+") as f_code:
-        f_code.truncate(0)
-        f_code.write(code)
-        f_code.seek(0)
+    print(msg)
+    await ctx.send(msg)
+    await ctx.send(disc_id == ctx.author.id)
+    return
+    existing_player = session.query(Player).filter_by(ign=ign).first()
+    existing_ign = session.query(Player).filter_by(discord_id=ctx.author.id).first()
 
-        with open("output.txt", 'r+') as f_out:
-            f_out.truncate(0)
-            sys.stdout = f_out
-            local.execute_safe(f_code.read())
+    if region.upper() not in ['NA', 'EUW', 'EUN']:
+        embed = discord.Embed(title='Error', description='Invalid region. Please choose from: NA, EUW, EUN', color=0xff0000)
+        await ctx.send(embed=embed)
 
-            f_out.seek(0)
-            sys.stdout = sys.__stdout__
+    elif existing_player:
+        # IGN is already in the database
+        embed = discord.Embed(title='Error', description=f'The IGN {ign} is already taken. Please choose a different IGN.', color=0xff0000)
+        await ctx.send(embed=embed)
 
-            content = f_out.read()[0:-1] # Drop the last EOL character
-            await ctx.send(content[0:2000])
-            return
-            for i in range(0, len(content), 2000):
-                message = content[i:i+2000]
-                if message != None:
-                    print(f"Sending Characters: {i}")
-                    await ctx.send(message)
+    elif existing_ign:
+        # User already has a player profile in the database
+        embed = discord.Embed(title='Error', description='You already have a player profile. If you need to update your IGN, please contact an administrator.', color=0xff0000)
+        await ctx.send(embed=embed)
 
-
-@bot.command(name='stock', help="Gets stock info")
-@commands.has_role("Business Men")
-async def py(ctx, ticker):
-    ticker = ticker.upper()
-    content="Pretend Stock Alert:"
-    embed=discord.Embed(description=f'''💰 Ticker : **{ticker}**
-                                        🟢 Entry : 2.87
-                                        🎯 Price Target 1: 3.2+
-                                        🛑 Stop Loss : 2.57
-                                        💭 Comments : Communications sector is leading - amazing daily chart loading here
-                                        ''', color=0x001adb)
-    await ctx.send(content=content, embed=embed)
+    else:
+        player = Player(discord_id=ctx.author.id, ign=ign, region=region)# We need to auth this somehow
+        session.add(player)
+        session.commit()
+        print(f'Created a new player profile for {player}!')
+        embed = discord.Embed(title='Success', description=f'Created a new player profile for {ign}!', color=0x00ff00)
+        await ctx.send(embed=embed)
 
 
-'''
-💰 Ticker : BBGI
-🟢 Entry : 2.87
-🎯 Price Target 1: 3.2+
-🛑 Stop Loss : 2.57
-💭 Comments : Communications sector is leading - amazing daily chart loading here1
-'''
+@bot.command(name='rating', help='Checks the users elo rating')
+async def check_rating(ctx, ign: str=None):
+
+    if ign:
+        user = session.query(Player).filter_by(ign=ign).first()
+    else:
+        user = session.query(Player).filter_by(discord_id=ctx.author.id).first()
+
+    embed = discord.Embed(title=f"{user.ign}'s Rating", description=f'Games Played: 0 \nRating: {user.rating} \nStandard Deviation: ±{user.deviation}', color=0x944a94)
+    await ctx.send(embed=embed)
 
 
-@bot.event
-async def on_message(message):
-    if len(message.embeds) > 0:
-        description = message.embeds[0].description
-        if len(description) > 11:
-            if description[0:11] == '💰 Ticker : ':
-                ticker = description[11:18]
-                ticker = ticker.strip(" *\n🟢")
-                data = pt.get_stock_data(ticker)
-                response = f"Buying 100 shares of {ticker} @ {data['askPrice']}"
-                print(response)
-                #Buy the shares!
-                await message.channel.send(response)
+queue_amount = 0
+@bot.command(name='queue', aliases=['q'], help='Player joins the queue')
+async def join_queue(ctx):
+    global queue_amount
+    queue_amount += 1
+    user = session.query(Player).filter_by(discord_id=ctx.author.id).first()
+    embed = discord.Embed(title=f"{user.ign} has joined the queue ({queue_amount}/10)", color=0x944a94)
+    await ctx.send(embed=embed)
 
-    await bot.process_commands(message)
-   
+@bot.command(name='leave', help='Player joins the queue')
+async def join_queue(ctx):
+    global queue_amount
+    queue_amount -= 1
+    user = session.query(Player).filter_by(discord_id=ctx.author.id).first()
+    embed = discord.Embed(title=f"{user.ign} has left the queue ({queue_amount}/10)", color=0x944a94)
+    await ctx.send(embed=embed)
+
+
 
 bot.run(TOKEN)
