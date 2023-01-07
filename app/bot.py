@@ -5,7 +5,7 @@ from discord.ext import commands
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from database import Player, Match
+from database import Player, Match, standardize_role
 
 
 # Discord Bot Startup
@@ -26,10 +26,7 @@ async def on_ready():
 
     for guild in bot.guilds:
         print(f'Connected to the following guild:\n {guild.name}(id: {guild.id})')
-    
-    members = '\n - '.join([member.name for member in guild.members])
-    print(f'Guild Members:\n - {members}')
-
+   
 
 @bot.event
 async def on_command_error(ctx, error):
@@ -45,9 +42,9 @@ async def say_hello(ctx):
     await ctx.send("Hello!")
 
 
-@bot.command(name='create_profile', help='Initiates a players profile with their IGN and their region')
-async def create_profile(ctx, ign: str, region: str):
-    # Check if the IGN is already in the database
+@bot.command(name='register', help='Initiates a players profile with their IGN and their region')
+async def register(ctx, ign: str, region: str, role1:str, role2:str):
+    # Check if the Discord or IGN is already in the database
     existing_player = session.query(Player).filter_by(ign=ign).first()
     existing_ign = session.query(Player).filter_by(discord_id=ctx.author.id).first()
 
@@ -66,14 +63,21 @@ async def create_profile(ctx, ign: str, region: str):
         await ctx.send(embed=embed)
 
     else:
-        player = Player(discord_id=ctx.author.id, ign=ign, region=region)# We need to auth this somehow
-        session.add(player)
-        session.commit()
-        print(f'Created a new player profile for {player}!')
-        embed = discord.Embed(title='Success', description=f'Created a new player profile for {ign}!', color=0x00ff00)
-        await ctx.send(embed=embed)
+        # we need to fix the roles that players might input
+        role1 = standardize_role(role1)
+        role2 = standardize_role(role2)
+        if role1 is None or role2 is None:
+            await ctx.send("Sorry, the roles you entered were not recognized. Please enter one of the following roles: Top, Jgl, Mid, Adc, Sup")
+            
+        else:
+            player = Player(discord_id=ctx.author.id, ign=ign, region=region, role1=role1, role2=role2)# We need to auth this somehow
+            session.add(player)
+            session.commit()
+            print(f'Created a new player profile for {player}!')
+            embed = discord.Embed(title='Success', description=f'Created a new player profile for {ign}!', color=0x00ff00)
+            await ctx.send(embed=embed)
 
-
+# This function needs worked on later
 @bot.command(name='update_profile', help='Initiates a players profile with their IGN and their region')
 @commands.has_role("Admin")
 async def update_profile(ctx, disc_id: str):
@@ -81,10 +85,6 @@ async def update_profile(ctx, disc_id: str):
     disc_id = int(disc_id[2:-1])
     msg = f"input:({disc_id}) Discord:({ctx.author.id})"
 
-    print(msg)
-    await ctx.send(msg)
-    await ctx.send(disc_id == ctx.author.id)
-    return
     existing_player = session.query(Player).filter_by(ign=ign).first()
     existing_ign = session.query(Player).filter_by(discord_id=ctx.author.id).first()
 
@@ -111,6 +111,85 @@ async def update_profile(ctx, disc_id: str):
         await ctx.send(embed=embed)
 
 
+def balance_teams(members):
+    team_1 = members[0:5]
+    team_2 = members[5:10]
+    return team_1, team2
+
+
+queue_list = []
+match_id = 0
+@bot.command(name='queue', aliases=['q'], help='Player joins the queue')
+async def join_queue(ctx):
+    global queue_list
+    global match_id
+
+    player = session.query(Player).filter_by(discord_id=ctx.author.id).first()
+    if player is None:
+        await ctx.send(f"Sorry no account was found for <@{player.discord_id}>, are you sure you did `?register` ?")
+    else:
+        # Prob need to make sure player isnt already in the queue
+        queue_list.append(player)
+        embed = discord.Embed(title=f"{player.ign} has joined the queue ({len(queue_list)}/10)", color=0x944a94)            
+        embed.add_field(name="Players: ", value='\n'.join(f"<@{player.discord_id}>" for player in queue_list))
+        await ctx.send(embed=embed)
+
+    # Match Find
+    if len(queue_list) == 10:
+        team_1, team_2 = balance_teams(queue_list)
+        roles = ["Top", "Jng", "Mid", "ADC", "Sup"]
+        # Delete the queue list now that we have the teams
+        queue_list = []
+
+        blue_team_field = '\n'.join(f"{roles[i]} - {player.discord_id} μ: {player.rating}" for i, player in enumerate(team_1))
+        red_team_field = '\n'.join(f"{roles[i]} - {player.discord_id} μ: {player.rating}" for i, player in enumerate(team_2))
+
+        # create a new match in the match table here and replace "match_id" with match.id
+        embed = discord.Embed(title=f"Match #{match_id} starting ...", color=0x944a94)
+        embed.add_field(name='Blue Team 🔵', value=blue_team_field, inline=True)
+        embed.add_field(name='Red Team 🔴', value=red_team_field, inline=True)
+        await ctx.send(embed=embed)
+
+        embed = discord.Embed(title=f"⚠️After Match", description=f"Use `?win blue` or `?win red` to finish the match.", color=0xebcc34)
+        await ctx.send(embed=embed)
+
+
+@bot.command(name='leave', aliases=['l'], help='Player leaves the queue')
+async def leave_queue(ctx):
+    global queue_list
+    queue_list.remove(ctx.author.id)
+    embed = discord.Embed(title=f"You have left the queue ({len(queue_list)}/10)", color=0x944a94)
+    embed.add_field(name="Players: ", value='\n'.join(f"<@{player}>" for player in queue_list))
+    await ctx.send(embed=embed)
+
+
+@bot.command(name='win', help='Command to tell bot which team won the game') # This can probably be automated by pulling the riot API with the players we know are in the game
+@commands.has_role("Manager")
+async def win(ctx, team: str):    
+    global match_id
+    user = session.query(Player).filter_by(discord_id=ctx.author.id).first()
+    guild = bot.guilds[0]
+    members = [f"{member.name} - μ: 1500" for member in guild.members]
+    team_1 = members[:5]
+    team_2 = members[5:10]
+    roles = ["Top -", "Jgl -", "Mid -", "ADC -", "Sup -"]
+
+    if team == "blue":
+        embed = discord.Embed(title=f"Match #{match_id}: Blue Team 🔵 has won!", color=0x0000ff)
+        blue_team_field = '\n'.join(f"{roles[i]} {member} **+15**" for i, member in enumerate(team_1))
+        red_team_field = '\n'.join(f"{roles[i]} {member} **-15**" for i, member in enumerate(team_2))
+
+    elif team == "red":
+        embed = discord.Embed(title=f"Match #{match_id}: Red Team 🔴 has won!", color=0xff0000)
+        blue_team_field = '\n'.join(f"{roles[i]} {member} **-15**" for i, member in enumerate(team_1))
+        red_team_field = '\n'.join(f"{roles[i]} {member} **+15**" for i, member in enumerate(team_2))
+
+    embed.add_field(name='Blue Team 🔵', value=blue_team_field, inline=True)
+    embed.add_field(name='Red Team 🔴', value=red_team_field, inline=True)
+
+    await ctx.send(embed=embed)
+
+
 @bot.command(name='rating', help='Checks the users elo rating')
 async def check_rating(ctx, ign: str=None):
 
@@ -120,24 +199,6 @@ async def check_rating(ctx, ign: str=None):
         user = session.query(Player).filter_by(discord_id=ctx.author.id).first()
 
     embed = discord.Embed(title=f"{user.ign}'s Rating", description=f'Games Played: 0 \nRating: {user.rating} \nStandard Deviation: ±{user.deviation}', color=0x944a94)
-    await ctx.send(embed=embed)
-
-
-queue_amount = 0
-@bot.command(name='queue', aliases=['q'], help='Player joins the queue')
-async def join_queue(ctx):
-    global queue_amount
-    queue_amount += 1
-    user = session.query(Player).filter_by(discord_id=ctx.author.id).first()
-    embed = discord.Embed(title=f"{user.ign} has joined the queue ({queue_amount}/10)", color=0x944a94)
-    await ctx.send(embed=embed)
-
-@bot.command(name='leave', help='Player joins the queue')
-async def join_queue(ctx):
-    global queue_amount
-    queue_amount -= 1
-    user = session.query(Player).filter_by(discord_id=ctx.author.id).first()
-    embed = discord.Embed(title=f"{user.ign} has left the queue ({queue_amount}/10)", color=0x944a94)
     await ctx.send(embed=embed)
 
 
