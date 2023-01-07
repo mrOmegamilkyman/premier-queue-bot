@@ -7,6 +7,21 @@ engine = create_engine('sqlite:///app/main.db')
 Base = declarative_base()
 Session = sessionmaker(bind=engine)
 
+role_map = {
+    "TOP": ["TOP"],
+    "JGL": ["JGL", "JUNGLE", "JUNG", "JNG", "JG"],
+    "MID": ["MID", "MIDDLE"],
+    "ADC": ["ADC", "CARRY", "BOT", "BOTLANE"],
+    "SUP": ["SUP", "SUPPORT", "SUPP"]
+}
+
+def standardize_role(role):
+    for standard_role, variations in role_map.items():
+        if role.upper() in variations:
+            return standard_role
+    return None
+
+
 
 class Player(Base):
     __tablename__ = 'players'
@@ -14,17 +29,22 @@ class Player(Base):
     id = Column(Integer, primary_key=True)
     discord_id = Column(String, nullable=False)
     ign = Column(String, nullable=False)
-    region = Column(String, nullable=False)
+    region = Column(String, nullable=False, default="NA") # NA, EUW, EUN
     rating = Column(Integer, nullable=False, default=1500)
     deviation = Column(Integer, nullable=False, default=350)
+    role1 = Column(String, nullable=False, default="MID")
+    role2 = Column(String, nullable=False, default="TOP")
+    in_game = Column(Integer, nullable=False, default=0) # 0 false 1 true
 
     def __repr__(self):
-        return f'<Player(discord_id={self.discord_id}, ign={self.ign}, rating={self.rating}, deviation={self.deviation})>'
+        return f'<Player(discord_id={self.discord_id}, ign={self.ign}, role={self.role1}, rating={self.rating})>'
+
 
 class Match(Base):
     __tablename__ = 'matches'
 
     id = Column(Integer, primary_key=True)
+    winner = Column(Integer, default=0) #0 in progress, 1 team1, 2 team2
     # Team 1
     player_1_id = Column(Integer, ForeignKey('players.id'), nullable=False)
     player_2_id = Column(Integer, ForeignKey('players.id'), nullable=False)
