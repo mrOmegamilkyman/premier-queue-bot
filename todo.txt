@@ -1,9 +1,13 @@
 Done
--Create a "Hello, World!" bot on a dedicated server and add it to Discord.
-
-Working On:
+-Create a "Hello, World!" queue bot on a dedicated server and add it to Discord.
 -Set up everything related to onboarding of new players, like asking for roles and regions.
--Add a function to start up the lobby.
+-Add a function to start up the Queue and Lobby.
+
+Jork Working On:
+- Rating change calculator
+
+Adam working on:
+- Match maker engine
 
 To-Do
 -Connect players to a Custom League game.

@@ -1,6 +1,9 @@
 import os
+import asyncio
 import discord
+import statistics
 
+from datetime import datetime
 from discord import app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
@@ -13,7 +16,7 @@ from database import Player, Match, standardize_role
 load_dotenv() # You need a .env file in your folder to get any secrets
 TOKEN = os.getenv('DISCORD_TOKEN')
 intents = discord.Intents().all()
-bot = commands.Bot(command_prefix='/', intents=intents)
+bot = commands.Bot(command_prefix='!', intents=intents)
 
 # SQL Alchemy Startup
 engine = create_engine('sqlite:///app/main.db')
@@ -33,6 +36,8 @@ async def on_ready():
         print(f"Synced {len(synced)} commands")
     except Exception as e:
         print(e)
+    
+    bot.loop.create_task(check_queue_timeouts())
 
 
 @bot.event
@@ -55,6 +60,7 @@ async def say(interaction: discord.Interaction, thing_to_say: str):
     await interaction.response.send_message(f"{interaction.user.name} said: '{thing_to_say}'")
 
 
+# Have this function also assign the players role in the cord
 @bot.tree.command(name='register', description="Registers a user with the bot")
 @app_commands.describe(ign = "Your username or 'summoner name' in League of Legends", 
                         region = "'NA' or 'EUW' or 'EUN'", 
@@ -95,7 +101,7 @@ async def register(interaction: discord.Interaction, ign: str, region: str, role
             await interaction.response.send_message(embed=embed)
 
 
-# This function needs to update the players roles in tha database
+
 @bot.tree.command(name='roles', description="Updates roles for the user")
 @app_commands.describe(role1="'Top', 'Jng', 'Mid', 'ADC', 'Sup'", role2="'Top', 'Jng', 'Mid', 'ADC', 'Sup'" )
 async def roles(interaction: discord.Interaction, role1:str, role2:str):
@@ -119,39 +125,66 @@ async def roles(interaction: discord.Interaction, role1:str, role2:str):
     await interaction.response.send_message(embed=embed)
 
 
-def balance_teams(members):
-    team_1 = members[0:5]
-    team_2 = members[5:10]
+# This function needs to actually balance teams based on the elos of the players
+# It should split the teams and balance the teams by minimizing the difference in the average ratings on each side
+# It should also probably try to make the teams so the players get their primary/secondary role.
+def balance_teams(queue_dict):
+    # Sort the players by rating in descending order
+    sorted_players = sorted(queue_dict.keys(), key=lambda x: x.rating, reverse=True)
+
+    # Split the players into two lists
+    half = len(sorted_players) // 2
+    team_1 = sorted_players[:half]
+    team_2 = sorted_players[half:]
+
+    # Calculate the average ratings for each team
+    avg_rating_1 = statistics.mean([player.rating for player in team_1])
+    avg_rating_2 = statistics.mean([player.rating for player in team_2])
+
+    # Check if the difference in average rating is greater than 100
+    # If it is, swap the lowest rating player on team 1 with the highest rating player on team 2
+    while abs(avg_rating_1 - avg_rating_2) > 100:
+        low_player = min(team_1, key=lambda x: x.rating)
+        high_player = max(team_2, key=lambda x: x.rating)
+        team_1.remove(low_player)
+        team_2.remove(high_player)
+        team_1.append(high_player)
+        team_2.append(low_player)
+
+        # Recalculate the average ratings for each team
+        avg_rating_1 = statistics.mean([player.rating for player in team_1])
+        avg_rating_2 = statistics.mean([player.rating for player in team_2])
+
     return team_1, team_2
 
 
-queue_list = []
+queue_dict = {} #(player:time)
 match_id = 0
-@bot.command(name='queue', help="Adds the user to a queue")
+@bot.command(name='queue', aliases=['q'], help="Adds the user to a queue")
 async def join_queue(ctx):
-    global queue_list
+    global queue_dict
     global match_id
-
     player = session.query(Player).filter_by(discord_id=ctx.author.id).first()
-
+    
     if player is None:
         await ctx.send(f"Sorry no account was found for <@{ctx.author.id}>, are you sure you did `?register` ?")
-    elif player in queue_list:
-        embed = discord.Embed(title=f"{player.ign} already in queue ({len(queue_list)}/10)", color=0x944a94)            
-        embed.add_field(name="Players: ", value='\n'.join(f"<@{player.discord_id}>" for player in queue_list))
+    elif player in queue_dict:
+        
+        embed = discord.Embed(title=f"{player.ign} already in queue ({len(queue_dict)}/10)", color=0x944a94)            
+        embed.add_field(name="Players: ", value='\n'.join(f"<@{player.discord_id}>" for player, time in queue_dict.items()))
         await ctx.send(embed=embed)
     else:
-        queue_list.append(player)
-        embed = discord.Embed(title=f"{player.ign} has joined the queue ({len(queue_list)}/10)", color=0x944a94)            
-        embed.add_field(name="Players: ", value='\n'.join(f"<@{player.discord_id}>" for player in queue_list))
+        queue_dict[player] = datetime.now()
+        embed = discord.Embed(title=f"{player.ign} has joined the queue ({len(queue_dict)}/10)", color=0x944a94)            
+        embed.add_field(name="Players: ", value='\n'.join(f"<@{player.discord_id}>" for player, time in queue_dict.items()))
         await ctx.send(embed=embed)
 
-    # Match Find
-    if len(queue_list) == 10:
-        team_1, team_2 = balance_teams(queue_list)
+    # Match Find not sure if this code should be here or somewhere else
+    if len(queue_dict) == 10:
+        team_1, team_2 = balance_teams(queue_dict)
         roles = ["Top", "Jng", "Mid", "ADC", "Sup"]
         # Delete the queue list now that we have the teams
-        queue_list = []
+        queue_dict = {}
 
         blue_team_field = '\n'.join(f"{roles[i]} - {player.discord_id} μ: {player.rating}" for i, player in enumerate(team_1))
         red_team_field = '\n'.join(f"{roles[i]} - {player.discord_id} μ: {player.rating}" for i, player in enumerate(team_2))
@@ -167,15 +200,35 @@ async def join_queue(ctx):
         await ctx.send(embed=embed)
 
 
-@bot.tree.command(name='leave', description='Removes the user from the queue')
-async def leave_queue(interaction: discord.Interaction):
-    global queue_list
+
+@bot.command(name='leave', aliases=['l'], help='Removes the user from the queue')
+async def leave_queue(ctx):
+    global queue_dict
     # Auto leave queue after 10 min somehow
-    player = session.query(Player).filter_by(discord_id=interaction.user.id).first()
-    queue_list.remove(player)
-    embed = discord.Embed(title=f"You have left the queue ({len(queue_list)}/10)", color=0x944a94)
-    embed.add_field(name="Players: ", value='\n'.join(f"<@{player.discord_id}>" for player in queue_list))
-    await interaction.response.send_message(embed=embed)
+    player = session.query(Player).filter_by(discord_id=ctx.author.id).first()
+    if player in queue_dict:
+        del queue_dict[player]
+        embed = discord.Embed(title=f"You have left the queue ({len(queue_dict)}/10)", color=0x944a94)
+        if len(queue_dict) > 0:
+            embed.add_field(name="Players: ", value='\n'.join(f"<@{player.discord_id}>" for player, time in queue_dict.items()), inline=True)
+        await ctx.send(embed=embed)
+    else:
+        embed = discord.Embed(title=f"You are not in queue!", color=0x944a94)
+        await ctx.send(embed=embed)
+
+
+async def check_queue_timeouts():
+    while True:
+        purge_list = []
+        for player, jointime in queue_dict.items():
+            if (datetime.now() - jointime).total_seconds() > 300: # 300 seconds is 5 minutes
+                purge_list.append(player)
+                print(f"{player.ign} removed from queue!")
+        
+        for player in purge_list:
+            del queue_dict[player]
+
+        await asyncio.sleep(60) # check every 60 seconds
 
 
 @bot.tree.command(name="win", description="Reports the result of a game")
